@@ -112,6 +112,13 @@ OUTPUT RULES:
 - examples should include short concrete findings; empty list allowed for zero issues.
 - Every finding must map to one check via checkId.
 - The sum of issueCount values across checks should equal findings.length.
+- originalText must be an exact verbatim snippet copied from REPORT TEXT TO ANALYZE.
+- If you cannot locate an exact snippet in the report text, do not return that finding.
+- recommendedText must be concrete replacement text (what should appear in document), not generic advice.
+- For check2 (Observation Title/Body Overlap), recommendedText must be either:
+  - a rewritten observation title, or
+  - rewritten body sentence(s) that include title keywords.
+  Do not output suggestions like "rephrase this" without actual replacement text.
 
 REPORT TEXT TO ANALYZE:
 """

@@ -92,7 +92,7 @@ export function QualityCheckSummary({
       onPreparedDocument(blob, nextFileName)
 
       setApplyMessage(
-        `Applied ${appliedCount} in-place replacement(s). Updated document is ready to download.`,
+        `Applied ${appliedCount} replacement(s). Updated document is ready to download.`,
       )
     } catch (error) {
       const message =

@@ -24,6 +24,23 @@ const checkIds = [
   'check9',
 ] as const
 
+function normalizeForGrounding(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function findingIsGrounded(documentText: string, originalText: string): boolean {
+  const sourceNormalized = normalizeForGrounding(documentText)
+  const findingNormalized = normalizeForGrounding(originalText)
+  if (!findingNormalized) return false
+  return sourceNormalized.includes(findingNormalized)
+}
+
 function extractJsonBlock(text: string): string {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
@@ -71,7 +88,10 @@ router.post('/quality-check', async (req, res) => {
     }
 
     const normalized = parsedResult.data
-    const countsByCheck = normalized.findings.reduce<Record<string, number>>(
+    const groundedFindings = normalized.findings.filter((finding) =>
+      findingIsGrounded(parsedRequest.data.documentText, finding.originalText),
+    )
+    const countsByCheck = groundedFindings.reduce<Record<string, number>>(
       (acc, finding) => {
         acc[finding.checkId] = (acc[finding.checkId] ?? 0) + 1
         return acc
@@ -104,10 +124,18 @@ router.post('/quality-check', async (req, res) => {
       normalized.abbreviatedMonthsScore ??
       Math.max(0, 100 - Math.min(100, monthAbbreviationIssueCount * 10))
 
+    const droppedUngroundedCount = normalized.findings.length - groundedFindings.length
+    const modelSummary =
+      droppedUngroundedCount > 0
+        ? `${normalized.modelSummary} ${droppedUngroundedCount} ungrounded finding(s) were excluded because original text was not found in the uploaded document.`
+        : normalized.modelSummary
+
     res.json({
       ...normalized,
+      modelSummary,
       checks,
-      overallIssueCount: normalized.findings.length,
+      findings: groundedFindings,
+      overallIssueCount: groundedFindings.length,
       abbreviatedMonthsScore,
     })
   } catch (error) {

@@ -9,21 +9,33 @@ function escapeRegex(value: string): string {
 }
 
 function buildFlexiblePatterns(originalText: string): RegExp[] {
-  const escaped = escapeRegex(originalText.trim())
+  const normalizedOriginal = originalText.trim()
+  const escaped = escapeRegex(normalizedOriginal)
   const whitespaceFlexible = escaped.replace(/\s+/g, '[\\s\\u00A0]+')
   const apostropheFlexible = whitespaceFlexible.replace(/'/g, "['’]")
   const quoteFlexible = apostropheFlexible.replace(/"/g, '["“”]')
   const dashFlexible = quoteFlexible.replace(/-/g, '[-–—]')
 
   const tokenPattern = buildTokenSequencePattern(originalText)
+  const normalizedWhitespace = normalizedOriginal.replace(/\s+/g, ' ').trim()
+  const normalizedWhitespacePattern = escapeRegex(normalizedWhitespace).replace(
+    /\s+/g,
+    '[\\s\\u00A0]+',
+  )
 
   return [
     new RegExp(escapeRegex(originalText), ''),
     new RegExp(whitespaceFlexible, ''),
+    new RegExp(apostropheFlexible, ''),
     new RegExp(quoteFlexible, ''),
     new RegExp(dashFlexible, ''),
+    new RegExp(normalizedWhitespacePattern, ''),
     ...(tokenPattern ? [tokenPattern] : []),
+    new RegExp(whitespaceFlexible, 'i'),
+    new RegExp(apostropheFlexible, 'i'),
     new RegExp(quoteFlexible, 'i'),
+    new RegExp(dashFlexible, 'i'),
+    new RegExp(normalizedWhitespacePattern, 'i'),
     ...(tokenPattern ? [new RegExp(tokenPattern.source, 'i')] : []),
   ]
 }
@@ -137,7 +149,7 @@ export async function applyRecommendationsInDocx({
 }: {
   sourceFile: File
   findingsToApply: QualityFinding[]
-}): Promise<{ blob: Blob; appliedCount: number }> {
+}): Promise<{ blob: Blob; appliedCount: number; unmatchedCount: number }> {
   const sourceBuffer = await sourceFile.arrayBuffer()
   const zip = await JSZip.loadAsync(sourceBuffer)
   const xmlFilePaths = Object.keys(zip.files).filter((path) =>
@@ -189,5 +201,5 @@ export async function applyRecommendationsInDocx({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   })
 
-  return { blob, appliedCount }
+  return { blob, appliedCount, unmatchedCount: remainingFindings.length }
 }
