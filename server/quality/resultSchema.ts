@@ -33,10 +33,18 @@ const findingSchema = z.object({
   rationale: z.string().min(1),
 })
 
+const coverageItemSchema = z.object({
+  checkId: checkIdSchema,
+  status: z.enum(['found', 'not_found']),
+  reason: z.string().min(1),
+  evidenceCount: z.number().int().min(0),
+})
+
 export const qualityCheckResponseSchema = z
   .object({
     overallIssueCount: z.number().int().min(0),
     abbreviatedMonthsScore: z.number().min(0).max(100).optional(),
+    coverage: z.array(coverageItemSchema).length(9).optional(),
     checks: z.array(checkItemSchema).length(9),
     findings: z.array(findingSchema),
     modelSummary: z.string().min(1),
@@ -49,6 +57,17 @@ export const qualityCheckResponseSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Each quality check id must be unique.',
       })
+    }
+
+    if (value.coverage) {
+      const coverageIds = value.coverage.map((item) => item.checkId)
+      const coverageSet = new Set(coverageIds)
+      if (coverageSet.size !== coverageIds.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Each coverage checkId must be unique.',
+        })
+      }
     }
   })
 

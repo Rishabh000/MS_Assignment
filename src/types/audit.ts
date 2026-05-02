@@ -115,9 +115,17 @@ export type QualityFinding = {
   rationale: string
 }
 
+export type QualityCoverageItem = {
+  checkId: QualityCheckId
+  status: 'found' | 'not_found'
+  reason: string
+  evidenceCount: number
+}
+
 export type QualityCheckResult = {
   overallIssueCount: number
   abbreviatedMonthsScore: number
+  coverage?: QualityCoverageItem[]
   checks: QualityCheckItem[]
   findings: QualityFinding[]
   modelSummary: string

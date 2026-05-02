@@ -60,6 +60,70 @@ function buildTokenSequencePattern(originalText: string): RegExp | null {
   return new RegExp(sequence, '')
 }
 
+function normalizeForOverlap(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function severityRank(value: QualityFinding['severity']): number {
+  if (value === 'High') return 3
+  if (value === 'Medium') return 2
+  return 1
+}
+
+function compareByPriority(a: QualityFinding, b: QualityFinding): number {
+  const byLength = b.originalText.length - a.originalText.length
+  if (byLength !== 0) return byLength
+
+  const byConfidence = b.confidenceScore - a.confidenceScore
+  if (byConfidence !== 0) return byConfidence
+
+  const bySeverity = severityRank(b.severity) - severityRank(a.severity)
+  if (bySeverity !== 0) return bySeverity
+
+  return a.id.localeCompare(b.id)
+}
+
+function dedupeAndPrioritizeFindings(findings: QualityFinding[]): {
+  findings: QualityFinding[]
+  skippedOverlaps: number
+} {
+  const ordered = [...findings].sort(compareByPriority)
+  const keptByLocation = new Map<string, QualityFinding[]>()
+  const deduped: QualityFinding[] = []
+  let skippedOverlaps = 0
+
+  for (const finding of ordered) {
+    const locationKey = `${finding.pageNumber}|${finding.section.toLowerCase()}|${finding.line}`
+    const normalizedOriginal = normalizeForOverlap(finding.originalText)
+    if (!normalizedOriginal) {
+      deduped.push(finding)
+      continue
+    }
+
+    const existing = keptByLocation.get(locationKey) ?? []
+    const overlaps = existing.some((item) => {
+      const other = normalizeForOverlap(item.originalText)
+      return normalizedOriginal.includes(other) || other.includes(normalizedOriginal)
+    })
+    if (overlaps) {
+      skippedOverlaps += 1
+      continue
+    }
+
+    existing.push(finding)
+    keptByLocation.set(locationKey, existing)
+    deduped.push(finding)
+  }
+
+  return { findings: deduped, skippedOverlaps }
+}
+
 function replaceFirstFlexible(
   sourceText: string,
   originalText: string,
@@ -205,7 +269,9 @@ export async function applyRecommendationsInDocx({
   )
 
   let appliedCount = 0
-  const remainingFindings = [...findingsToApply]
+  const { findings: prioritizedFindings, skippedOverlaps } =
+    dedupeAndPrioritizeFindings(findingsToApply)
+  const remainingFindings = [...prioritizedFindings]
 
   for (const filePath of xmlFilePaths) {
     const xmlContent = await zip.file(filePath)?.async('string')
@@ -214,7 +280,7 @@ export async function applyRecommendationsInDocx({
     const parser = new DOMParser()
     const parsed = parser.parseFromString(xmlContent, 'application/xml')
 
-    for (let index = remainingFindings.length - 1; index >= 0; index -= 1) {
+    for (let index = 0; index < remainingFindings.length; ) {
       const finding = remainingFindings[index]
       const replacedInParagraph = replaceFirstInParagraphRuns(
         parsed,
@@ -229,7 +295,10 @@ export async function applyRecommendationsInDocx({
           finding.recommendedText,
         )
 
-      if (!replaced) continue
+      if (!replaced) {
+        index += 1
+        continue
+      }
 
       appliedCount += 1
       remainingFindings.splice(index, 1)
@@ -249,5 +318,9 @@ export async function applyRecommendationsInDocx({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   })
 
-  return { blob, appliedCount, unmatchedCount: remainingFindings.length }
+  return {
+    blob,
+    appliedCount,
+    unmatchedCount: remainingFindings.length + skippedOverlaps,
+  }
 }
