@@ -22,15 +22,21 @@ function buildFlexiblePatterns(originalText: string): RegExp[] {
     /\s+/g,
     '[\\s\\u00A0]+',
   )
+  const simpleWordMatch = normalizedOriginal.match(/^[A-Za-z]{2,20}\.?$/)
+  const wholeWordPattern = simpleWordMatch
+    ? new RegExp(`\\b${escapeRegex(simpleWordMatch[0].replace(/\.$/, ''))}\\b\\.?`)
+    : null
 
   return [
     new RegExp(escapeRegex(originalText), ''),
+    ...(wholeWordPattern ? [wholeWordPattern] : []),
     new RegExp(whitespaceFlexible, ''),
     new RegExp(apostropheFlexible, ''),
     new RegExp(quoteFlexible, ''),
     new RegExp(dashFlexible, ''),
     new RegExp(normalizedWhitespacePattern, ''),
     ...(tokenPattern ? [tokenPattern] : []),
+    ...(wholeWordPattern ? [new RegExp(wholeWordPattern.source, 'i')] : []),
     new RegExp(whitespaceFlexible, 'i'),
     new RegExp(apostropheFlexible, 'i'),
     new RegExp(quoteFlexible, 'i'),
@@ -70,24 +76,54 @@ function replaceFirstFlexible(
   return { updatedText: sourceText, replaced: false }
 }
 
-function redistributeParagraphText(
-  textNodes: Element[],
-  updatedParagraphText: string,
-): void {
-  const previousLengths = textNodes.map((node) => (node.textContent ?? '').length)
-  let cursor = 0
+type MatchRange = { start: number; end: number }
 
-  for (let index = 0; index < textNodes.length; index += 1) {
-    const node = textNodes[index]
-    const isLastNode = index === textNodes.length - 1
-    const chunkLength = isLastNode
-      ? updatedParagraphText.length - cursor
-      : previousLengths[index]
-    const safeLength = Math.max(0, chunkLength)
+type TextNodeSegment = {
+  node: Element
+  start: number
+  end: number
+  text: string
+}
 
-    node.textContent = updatedParagraphText.slice(cursor, cursor + safeLength)
-    cursor += safeLength
+function findFirstFlexibleMatchRange(
+  sourceText: string,
+  originalText: string,
+): MatchRange | null {
+  for (const pattern of buildFlexiblePatterns(originalText)) {
+    const match = pattern.exec(sourceText)
+    if (!match || typeof match.index !== 'number') continue
+    const matchedValue = match[0] ?? ''
+    if (!matchedValue) continue
+    return { start: match.index, end: match.index + matchedValue.length }
   }
+
+  return null
+}
+
+function replaceRangeInParagraphRuns(
+  segments: TextNodeSegment[],
+  matchRange: MatchRange,
+  recommendedText: string,
+): boolean {
+  const firstIndex = segments.findIndex(
+    (segment) => matchRange.start >= segment.start && matchRange.start < segment.end,
+  )
+  const lastIndex = segments.findIndex(
+    (segment) => matchRange.end > segment.start && matchRange.end <= segment.end,
+  )
+  if (firstIndex === -1 || lastIndex === -1) return false
+
+  const first = segments[firstIndex]
+  const last = segments[lastIndex]
+  const prefix = first.text.slice(0, matchRange.start - first.start)
+  const suffix = last.text.slice(matchRange.end - last.start)
+  first.node.textContent = `${prefix}${recommendedText}${suffix}`
+
+  for (let index = firstIndex + 1; index <= lastIndex; index += 1) {
+    segments[index].node.textContent = ''
+  }
+
+  return true
 }
 
 function replaceFirstInParagraphRuns(
@@ -101,18 +137,30 @@ function replaceFirstInParagraphRuns(
     const textNodes = Array.from(paragraph.getElementsByTagName('w:t'))
     if (textNodes.length === 0) continue
 
-    const paragraphText = textNodes.map((node) => node.textContent ?? '').join('')
+    const segments: TextNodeSegment[] = []
+    let cursor = 0
+    for (const node of textNodes) {
+      const text = node.textContent ?? ''
+      const start = cursor
+      cursor += text.length
+      segments.push({ node, start, end: cursor, text })
+    }
+
+    const paragraphText = segments.map((segment) => segment.text).join('')
     if (!paragraphText.trim()) continue
 
-    const { updatedText, replaced } = replaceFirstFlexible(
+    const matchRange = findFirstFlexibleMatchRange(
       paragraphText,
       originalText,
+    )
+    if (!matchRange) continue
+
+    const replaced = replaceRangeInParagraphRuns(
+      segments,
+      matchRange,
       recommendedText,
     )
-    if (!replaced) continue
-
-    redistributeParagraphText(textNodes, updatedText)
-    return true
+    if (replaced) return true
   }
 
   return false

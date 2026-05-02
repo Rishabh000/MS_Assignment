@@ -56,6 +56,7 @@ export function AuditReportPage() {
 
   const selectedFile = useWatch({ control, name: 'reportFile' }) ?? null
   const selectedReportType = useWatch({ control, name: 'reportType' }) ?? 'Draft'
+  const hasPreparedDocument = Boolean(preparedBlob && preparedFileName)
 
   useEffect(() => {
     if (!isRunningCheck) return
@@ -163,12 +164,12 @@ export function AuditReportPage() {
                         ))}
                       </Select>
                     </div>
-                    {selectedReportType === 'Final' ? (
+                    {selectedReportType === 'Final' && hasPreparedDocument ? (
                       <Button
                         type="button"
                         variant="outline"
                         onClick={downloadPreparedDocument}
-                        disabled={!preparedBlob || isRunningCheck}
+                        disabled={isRunningCheck}
                         className="inline-flex items-center gap-2"
                       >
                         <Download className="h-4 w-4" />
