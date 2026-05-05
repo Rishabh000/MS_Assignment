@@ -7,6 +7,7 @@ import {
   buildRecommendationSelfReviewPrompt,
 } from '../quality/promptTemplate'
 import { qualityCheckResponseSchema } from '../quality/resultSchema'
+import { qualityRuleDefinitions } from '../../shared/qualityRules'
 
 const requestSchema = z.object({
   reportType: z.enum(['Draft', 'Final']),
@@ -16,17 +17,10 @@ const requestSchema = z.object({
 const router = Router()
 
 const model = 'gemini-2.5-flash'
-const checkIds = [
-  'check1',
-  'check2',
-  'check3',
-  'check4',
-  'check5',
-  'check6',
-  'check7',
-  'check8',
-  'check9',
-] as const
+const checkIds = qualityRuleDefinitions.map((rule) => rule.id)
+const abbreviatedMonthsRuleId =
+  qualityRuleDefinitions.find((rule) => rule.contributesToAbbreviatedMonthsScore)
+    ?.id ?? 'check5'
 
 function normalizeForGrounding(value: string): string {
   return value
@@ -264,7 +258,7 @@ router.post('/quality-check', async (req, res) => {
       }
     })
 
-    const monthAbbreviationIssueCount = countsByCheck.check5 ?? 0
+    const monthAbbreviationIssueCount = countsByCheck[abbreviatedMonthsRuleId] ?? 0
     const abbreviatedMonthsScore =
       normalized.abbreviatedMonthsScore ??
       Math.max(0, 100 - Math.min(100, monthAbbreviationIssueCount * 10))

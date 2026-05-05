@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  qualityRuleDefinitions,
+  type QualityCheckId,
+} from '../../shared/qualityRules'
+export type { QualityCheckId } from '../../shared/qualityRules'
 
 export const reportTypeOptions = ['Draft', 'Final'] as const
 
@@ -32,63 +37,11 @@ export const acceptedDocumentMimeTypes = [
 
 export const acceptedDocumentExtensions = ['.docx']
 
-export const qualityCheckDefinitions = [
-  {
-    id: 'check1',
-    label: 'Format & Style - Front Page Title Uppercase',
-    description:
-      'Confirm that the report title on the front page is written entirely in capital letters.',
-  },
-  {
-    id: 'check2',
-    label: 'Content - Observation Title Body Overlap',
-    description:
-      'At least 50% of words in each observation title should be found in the corresponding observation body.',
-  },
-  {
-    id: 'check3',
-    label: 'Content - Heavy Jargon Detection',
-    description:
-      'Find jargon or heavy language and suggest simpler alternatives such as because, have, many, stated, near, administration, compared to, and to.',
-  },
-  {
-    id: 'check4',
-    label: 'Content - Stop and Bad Words Frequency',
-    description:
-      'Detect frequency of weak words including phrases like a bit, a little, a lot, basically, just, kind of, really, quite, some, numerous, and various.',
-  },
-  {
-    id: 'check5',
-    label: 'Format & Style - Month Abbreviations',
-    description:
-      'Only May, June, and July can remain abbreviated. Jan, Feb, Mar, Apr, Aug, Sept, Oct, Nov, and Dec should use full month names.',
-  },
-  {
-    id: 'check6',
-    label: 'Format & Style - UK Number Format',
-    description:
-      'Check inconsistent UK conventions for number formatting, including separators and rules for values ending with k and m.',
-  },
-  {
-    id: 'check7',
-    label: 'Format & Style - Currency Symbol Policy',
-    description:
-      'Currency symbols $, ₦, £, and Fr. should be replaced by text abbreviations USD, Naira, GBP, and CHF.',
-  },
-  {
-    id: 'check8',
-    label: 'Content - UK Spelling Quality',
-    description:
-      'Detect likely misspellings using UK English while excluding all-caps abbreviations, known domain words, number-unit patterns, and e.g./i.e. patterns.',
-  },
-  {
-    id: 'check9',
-    label: 'Content - Double and Triple Spaces',
-    description: 'Check for double or triple spaces between words.',
-  },
-] as const
-
-export type QualityCheckId = (typeof qualityCheckDefinitions)[number]['id']
+export const qualityCheckDefinitions = qualityRuleDefinitions.map((rule) => ({
+  id: rule.id,
+  label: rule.label,
+  description: rule.definition,
+}))
 
 export type QualityCheckItem = {
   id: QualityCheckId

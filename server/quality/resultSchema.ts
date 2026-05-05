@@ -1,16 +1,14 @@
 import { z } from 'zod'
+import {
+  qualityRuleDefinitions,
+  type QualityCheckId,
+} from '../../shared/qualityRules'
 
-const checkIdSchema = z.enum([
-  'check1',
-  'check2',
-  'check3',
-  'check4',
-  'check5',
-  'check6',
-  'check7',
-  'check8',
-  'check9',
-])
+const checkIds = qualityRuleDefinitions.map((rule) => rule.id)
+const checkIdSet = new Set(checkIds)
+const checkIdSchema = z.string().refine((value): value is QualityCheckId => {
+  return checkIdSet.has(value as QualityCheckId)
+}, 'Invalid quality check id.')
 
 const checkItemSchema = z.object({
   id: checkIdSchema,
@@ -44,8 +42,8 @@ export const qualityCheckResponseSchema = z
   .object({
     overallIssueCount: z.number().int().min(0),
     abbreviatedMonthsScore: z.number().min(0).max(100).optional(),
-    coverage: z.array(coverageItemSchema).length(9).optional(),
-    checks: z.array(checkItemSchema).length(9),
+    coverage: z.array(coverageItemSchema).length(checkIds.length).optional(),
+    checks: z.array(checkItemSchema).length(checkIds.length),
     findings: z.array(findingSchema),
     modelSummary: z.string().min(1),
   })

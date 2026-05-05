@@ -94,7 +94,7 @@ function dedupeAndPrioritizeFindings(findings: QualityFinding[]): {
   skippedOverlaps: number
 } {
   const ordered = [...findings].sort(compareByPriority)
-  const keptByLocation = new Map<string, QualityFinding[]>()
+  const keptKeys = new Set<string>()
   const deduped: QualityFinding[] = []
   let skippedOverlaps = 0
 
@@ -106,18 +106,15 @@ function dedupeAndPrioritizeFindings(findings: QualityFinding[]): {
       continue
     }
 
-    const existing = keptByLocation.get(locationKey) ?? []
-    const overlaps = existing.some((item) => {
-      const other = normalizeForOverlap(item.originalText)
-      return normalizedOriginal.includes(other) || other.includes(normalizedOriginal)
-    })
-    if (overlaps) {
+    // Only remove exact duplicate recommendations. Allow overlapping text edits
+    // so a broad rewrite and a spelling correction can both be applied.
+    const uniqueKey = `${locationKey}|${finding.checkId}|${normalizedOriginal}`
+    if (keptKeys.has(uniqueKey)) {
       skippedOverlaps += 1
       continue
     }
 
-    existing.push(finding)
-    keptByLocation.set(locationKey, existing)
+    keptKeys.add(uniqueKey)
     deduped.push(finding)
   }
 
@@ -147,6 +144,42 @@ type TextNodeSegment = {
   start: number
   end: number
   text: string
+}
+
+function setNodeTextPreservingWhitespace(node: Element, value: string): void {
+  node.textContent = value
+  if (/^\s|\s$/.test(value)) {
+    node.setAttribute('xml:space', 'preserve')
+    return
+  }
+  node.removeAttribute('xml:space')
+}
+
+function splitTextByWeights(text: string, weights: number[]): string[] {
+  if (weights.length === 0) return []
+  const totalWeight = weights.reduce((sum, value) => sum + Math.max(0, value), 0)
+  if (totalWeight === 0) {
+    const chunks = new Array<string>(weights.length).fill('')
+    chunks[0] = text
+    return chunks
+  }
+
+  const chunks: string[] = []
+  let consumed = 0
+  let accumulatedWeight = 0
+
+  for (let index = 0; index < weights.length; index += 1) {
+    if (index === weights.length - 1) {
+      chunks.push(text.slice(consumed))
+      break
+    }
+    accumulatedWeight += Math.max(0, weights[index])
+    const target = Math.round((accumulatedWeight / totalWeight) * text.length)
+    chunks.push(text.slice(consumed, target))
+    consumed = target
+  }
+
+  return chunks
 }
 
 function findFirstFlexibleMatchRange(
@@ -181,10 +214,22 @@ function replaceRangeInParagraphRuns(
   const last = segments[lastIndex]
   const prefix = first.text.slice(0, matchRange.start - first.start)
   const suffix = last.text.slice(matchRange.end - last.start)
-  first.node.textContent = `${prefix}${recommendedText}${suffix}`
 
-  for (let index = firstIndex + 1; index <= lastIndex; index += 1) {
-    segments[index].node.textContent = ''
+  const matchedSegments = segments.slice(firstIndex, lastIndex + 1)
+  const matchedLengths = matchedSegments.map((segment) => {
+    const startInSegment = Math.max(0, matchRange.start - segment.start)
+    const endInSegment = Math.min(segment.text.length, matchRange.end - segment.start)
+    return Math.max(0, endInSegment - startInSegment)
+  })
+  const replacementChunks = splitTextByWeights(recommendedText, matchedLengths)
+
+  for (let offset = 0; offset < matchedSegments.length; offset += 1) {
+    const segment = matchedSegments[offset]
+    const replacementChunk = replacementChunks[offset] ?? ''
+    const isFirst = offset === 0
+    const isLast = offset === matchedSegments.length - 1
+    const nextText = `${isFirst ? prefix : ''}${replacementChunk}${isLast ? suffix : ''}`
+    setNodeTextPreservingWhitespace(segment.node, nextText)
   }
 
   return true
@@ -248,7 +293,7 @@ function replaceFirstInTextNodes(
     )
     if (!replaced) continue
 
-    node.textContent = updatedText
+    setNodeTextPreservingWhitespace(node, updatedText)
     return true
   }
 
