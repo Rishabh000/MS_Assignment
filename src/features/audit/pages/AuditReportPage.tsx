@@ -11,6 +11,7 @@ import { QualityCheckSummary } from '../components/QualityCheckSummary'
 import { QualityCheckProcessing } from '../components/QualityCheckProcessing'
 import { extractWordText } from '../utils/wordTextExtractor'
 import { runQualityCheck } from '../api/qualityCheckClient'
+import { qualityRuleDefinitions } from '../../../../shared/qualityRules'
 import {
   reportTypeOptions,
   uploadFormSchema,
@@ -21,7 +22,7 @@ import {
 const processingSteps = [
   'Parsing uploaded Word document',
   'Extracting key report sections',
-  'Evaluating 9 quality rules',
+  `Evaluating ${qualityRuleDefinitions.length} quality rules`,
   'Building issue counts and recommendation rows',
   'Preparing filtered quality-check results',
 ]
@@ -55,7 +56,6 @@ export function AuditReportPage() {
   }, [register])
 
   const selectedFile = useWatch({ control, name: 'reportFile' }) ?? null
-  const selectedReportType = useWatch({ control, name: 'reportType' }) ?? 'Draft'
   const hasPreparedDocument = Boolean(preparedBlob && preparedFileName)
 
   useEffect(() => {
@@ -164,7 +164,7 @@ export function AuditReportPage() {
                         ))}
                       </Select>
                     </div>
-                    {selectedReportType === 'Final' && hasPreparedDocument ? (
+                    {hasPreparedDocument ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -190,17 +190,18 @@ export function AuditReportPage() {
                       </p>
                     ) : null}
 
-                    <div className="pt-1">
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        disabled={isRunningCheck || !selectedFile}
-                        title={!selectedFile ? 'Upload a .docx file to enable' : undefined}
-                        className="w-full sm:w-auto"
-                      >
-                        {isRunningCheck ? 'Running Checks...' : 'Run Quality Check'}
-                      </Button>
-                    </div>
+                    {selectedFile ? (
+                      <div className="pt-1">
+                        <Button
+                          type="submit"
+                          variant="primary"
+                          disabled={isRunningCheck}
+                          className="w-full sm:w-auto"
+                        >
+                          {isRunningCheck ? 'Running Checks...' : 'Run Quality Check'}
+                        </Button>
+                      </div>
+                    ) : null}
 
                     {submitMessage ? (
                       <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">

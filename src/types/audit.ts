@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import {
-  qualityRuleDefinitions,
-  type QualityCheckId,
-} from '../../shared/qualityRules'
+import { type QualityCheckId } from '../../shared/qualityRules'
 export type { QualityCheckId } from '../../shared/qualityRules'
 
 export const reportTypeOptions = ['Draft', 'Final'] as const
@@ -36,12 +33,6 @@ export const acceptedDocumentMimeTypes = [
 ]
 
 export const acceptedDocumentExtensions = ['.docx']
-
-export const qualityCheckDefinitions = qualityRuleDefinitions.map((rule) => ({
-  id: rule.id,
-  label: rule.label,
-  description: rule.definition,
-}))
 
 export type QualityCheckItem = {
   id: QualityCheckId

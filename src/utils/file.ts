@@ -10,11 +10,3 @@ export function formatFileSize(sizeInBytes: number): string {
   }
   return `${sizeInBytes} B`
 }
-
-export function extensionFromFileName(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf('.')
-  if (dotIndex === -1) {
-    return ''
-  }
-  return fileName.slice(dotIndex).toLowerCase()
-}
