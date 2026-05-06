@@ -56,7 +56,10 @@ export function AuditReportPage() {
   }, [register])
 
   const selectedFile = useWatch({ control, name: 'reportFile' }) ?? null
+  const selectedReportType = useWatch({ control, name: 'reportType' })
   const hasPreparedDocument = Boolean(preparedBlob && preparedFileName)
+  const showDownloadUpdatedDocument =
+    hasPreparedDocument && selectedReportType === 'Final'
 
   useEffect(() => {
     if (!isRunningCheck) return
@@ -164,7 +167,7 @@ export function AuditReportPage() {
                         ))}
                       </Select>
                     </div>
-                    {hasPreparedDocument ? (
+                    {showDownloadUpdatedDocument ? (
                       <Button
                         type="button"
                         variant="outline"
